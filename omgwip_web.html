@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Version of omgwip</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game Constants
+        const BLOCK_SIZE = 50;
+        const GRID_SIZE = canvas.width / BLOCK_SIZE;
+        const FRAME_RATE = 8; // Set frames per second to 8
+        const FRAME_TIME = 1000 / FRAME_RATE; // Time per frame in milliseconds
+
+        // Image Assets
+        const playerImage = new Image();
+        playerImage.src = 'https://cdn.discordapp.com/attachments/1309551622329733161/1318758390813429820/DALLE_2024-12-17_20.53.37_-_A_simple_cartoon-style_character_sprite_designed_as_a_small_avatar._The_character_has_a_cheerful_expression_wearing_a_colorful_outfit_with_a_playful_.png?ex=67637cf5&is=67622b75&hm=29bd0f48c3471684a6472dcbd7b4dad001f665ece8b7da0331ca13981a658f1a';
+
+        const collectibleImage = new Image();
+        collectibleImage.src = 'https://cdn.discordapp.com/attachments/1309551622329733161/1318759147923046522/DALLE_2024-12-17_20.57.02_-_A_set_of_collectible_items_designed_in_a_cartoon_style_featuring_a_shiny_gold_coin_a_sparkling_star_and_a_radiant_gem._The_coin_has_a_simple_emboss.png?ex=67637daa&is=67622c2a&hm=899f970a806e568649386036085506620cd7d46bcb6cac0d58221da765206c92';
+        const obstacleImage = new Image();
+        obstacleImage.src = 'https://media.discordapp.net/attachments/1309551622329733161/1318759637842919436/DALLE_2024-12-17_20.59.34_-_A_detailed_cartoon-style_depiction_of_sharp_metal_spikes_as_an_obstacle_for_a_game._The_spikes_are_arranged_in_a_row_pointing_upwards_with_a_shiny_m.png?ex=67637e1f&is=67622c9f&hm=74c93a06f0b706063505b2cb37e4a72104e2bf74501fe062bc67d6763e7704a4&=&format=webp&quality=lossless&width=350&height=350';
+        const portalImage = new Image();
+        portalImage.src = 'https://cdn.discordapp.com/attachments/1309551622329733161/1318760063074173008/DALLE_2024-12-17_21.01.07_-_A_vivid_and_colorful_cartoon-style_portal_graphic_featuring_a_swirling_circular_design._The_portal_has_a_glowing_magical_appearance_with_spiraling_e.png?ex=67637e84&is=67622d04&hm=ace5e164dbe55da91111157988d90125b29d281532e3d71ae74833b9c9da4e88';
+
+        const backgroundImage = new Image();
+        backgroundImage.src = 'https://cdn.discordapp.com/attachments/1309551622329733161/1318760733483204652/DALLE_2024-12-17_21.03.32_-_A_vibrant_space-themed_background_featuring_a_galaxy_with_swirling_stars_nebulae_in_hues_of_purple_blue_and_pink_and_distant_planets_glowing_with_.png?ex=67637f24&is=67622da4&hm=e8fd1ba29f49bb25f2411142508c720a9b9cdb513e64fd5882c476227982019f';
+        backgroundImage.onload = () => {
+            console.log('Background image loaded successfully.');
+        };
+        backgroundImage.onerror = () => {
+            console.error('Failed to load background image.');
+            // Set a fallback color or image
+            ctx.fillStyle = '#f4f4f4'; // Fallback color
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+
+        // Game Variables
+        let blocks = [];
+        let player = { x: 0, y: 0, level: 1, xp: 0, speed: 1 }; // Player object with level and xp
+        let score = 0; // Player score
+        let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0; // Load high score from localStorage
+        let collectibles = []; // Array to hold collectible items
+        let obstacles = []; // Array to hold obstacles
+        let portals = []; // Array to hold portals
+        let lastFrameTime = 0; // Time of the last frame
+        let gameOver = false; // Game over state
+        let respawnMessage = ''; // Message to display on respawn
+
+        // Leveling System
+        const xpToLevelUp = 100; // XP required to level up
+
+        // Difficulty System
+        const difficulties = {
+            easy: { collectibles: 5, obstacles: 2 },
+            medium: { collectibles: 7, obstacles: 4 },
+            hard: { collectibles: 10, obstacles: 6 }
+        };
+        let currentDifficulty = 'medium'; // Default difficulty level
+
+        // Initialize Game
+        function init() {
+            // Create blocks (example)
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    blocks.push({ x: x * BLOCK_SIZE, y: y * BLOCK_SIZE });
+                }
+            }
+            // Create collectible items and obstacles based on difficulty
+            createCollectibles(difficulties[currentDifficulty].collectibles);
+            createObstacles(difficulties[currentDifficulty].obstacles);
+            createPortals(1); // Create 1 portal
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Create Collectibles
+        function createCollectibles(count) {
+            collectibles = []; // Clear previous collectibles
+            for (let i = 0; i < count; i++) {
+                let x = Math.floor(Math.random() * GRID_SIZE);
+                let y = Math.floor(Math.random() * GRID_SIZE);
+                collectibles.push({ x: x, y: y }); // Store position
+            }
+        }
+
+        // Create Obstacles
+        function createObstacles(count) {
+            obstacles = []; // Clear previous obstacles
+            for (let i = 0; i < count; i++) {
+                let x = Math.floor(Math.random() * GRID_SIZE);
+                let y = Math.floor(Math.random() * GRID_SIZE);
+                obstacles.push({ x: x, y: y }); // Store position
+            }
+        }
+
+        // Create Portals
+        function createPortals(count) {
+            if (portals.length < 1) { // Only create a portal if none exists
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * GRID_SIZE);
+                    y = Math.floor(Math.random() * GRID_SIZE);
+                } while (collectibles.some(c => c.x === x && c.y === y) || obstacles.some(o => o.x === x && o.y === y));
+                portals.push({ x: x, y: y }); // Store position
+            }
+        }
+
+        // Game Loop
+        function gameLoop(timestamp) {
+            if (!gameOver && timestamp - lastFrameTime >= FRAME_TIME) {
+                update();
+                draw();
+                lastFrameTime = timestamp;
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Update Game State
+        function update() {
+            // Check for collisions with collectibles
+            collectibles = collectibles.filter(collectible => {
+                if (collectible.x === player.x && collectible.y === player.y) {
+                    score++; // Increase score
+                    player.xp += 10; // Award XP for collecting
+                    console.log('Collected a collectible! Current XP:', player.xp); // Debug log for current XP
+                    if (player.xp >= xpToLevelUp) { // Check for level up
+                        player.level++; // Increase level
+                        player.xp = 0; // Reset XP
+                        console.log('Level Up! Current Level:', player.level); // Debug log for level up
+                    }
+                    if (score > highScore) { // Update high score if current score is higher
+                        highScore = score;
+                        localStorage.setItem('highScore', highScore); // Save new high score to localStorage
+                    }
+                    return false; // Remove collectible
+                }
+                return true; // Keep collectible
+            });
+            // Check for collisions with obstacles
+            obstacles.forEach(obstacle => {
+                if (obstacle.x === player.x && obstacle.y === player.y) {
+                    respawnPlayer(); // Call respawn function
+                }
+            });
+            // Check for collisions with portals
+            portals.forEach(portal => {
+                if (portal.x === player.x && portal.y === player.y) {
+                    // Reset game state for the next level
+                    player.level++; // Increment level
+                    score = 0; // Reset score
+                    player.x = 0; // Reset player position
+                    player.y = 0; // Reset player position
+                    console.log('Entered portal! Progressing to next level. Current Level:', player.level); // Debug log for portal entry
+                    // Create new collectibles and obstacles for the next level
+                    createCollectibles(difficulties[currentDifficulty].collectibles);
+                    createObstacles(difficulties[currentDifficulty].obstacles);
+                    portals = []; // Clear previous portal
+                    createPortals(1); // Create a new portal in a random location
+                }
+            });
+        }
+
+        // Respawn Player Function
+        function respawnPlayer() {
+            player.x = 0; // Reset player position to starting point
+            player.y = 0; // Reset player position to starting point
+            respawnMessage = 'You have respawned!'; // Set respawn message
+            gameOver = false; // Set game over state to false
+        }
+
+        // Draw Game
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height); // Draw background
+            // Draw player
+            ctx.drawImage(playerImage, player.x * BLOCK_SIZE, player.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            // Draw collectibles
+            collectibles.forEach(collectible => {
+                ctx.drawImage(collectibleImage, collectible.x * BLOCK_SIZE, collectible.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            });
+            // Draw obstacles
+            obstacles.forEach(obstacle => {
+                ctx.drawImage(obstacleImage, obstacle.x * BLOCK_SIZE, obstacle.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            });
+            // Draw portals
+            portals.forEach(portal => {
+                ctx.drawImage(portalImage, portal.x * BLOCK_SIZE, portal.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            });
+            // Display score
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText('Score: ' + score, 10, 20);
+            ctx.fillText('High Score: ' + highScore, 10, 40); // Display high score
+            ctx.fillText('Level: ' + player.level, 10, 60); // Display level
+            ctx.fillText('XP: ' + player.xp, 10, 80); // Display XP
+            // Display difficulty
+            ctx.fillText('Difficulty: ' + currentDifficulty, 10, 100); // Display difficulty
+            // Display respawn message
+            if (respawnMessage) {
+                ctx.fillStyle = 'orange';
+                ctx.font = '20px Arial';
+                ctx.fillText(respawnMessage, canvas.width / 4, canvas.height / 2);
+            }
+            // Display game over message
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '40px Arial';
+                ctx.fillText('Game Over!', canvas.width / 4, canvas.height / 2);
+            }
+        }
+
+        // Handle Keyboard Input
+        window.addEventListener('keydown', function(event) {
+            if (!gameOver) {
+                switch(event.key) {
+                    case 'ArrowUp':
+                    case 'w':
+                        if (player.y > 0) player.y--;
+                        break;
+                    case 'ArrowDown':
+                    case 's':
+                        if (player.y < GRID_SIZE - 1) player.y++;
+                        break;
+                    case 'ArrowLeft':
+                    case 'a':
+                        if (player.x > 0) player.x--;
+                        break;
+                    case 'ArrowRight':
+                    case 'd':
+                        if (player.x < GRID_SIZE - 1) player.x++;
+                        break;
+                }
+            }
+        });
+
+        // Start the Game
+        init();
+    </script>
+</body>
+</html>
