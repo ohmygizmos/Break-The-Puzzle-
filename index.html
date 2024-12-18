@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Break the Puzzle Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .puzzle-container {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+        }
+        .puzzle-piece {
+            width: 100px;
+            height: 100px;
+            background-color: #fff;
+            border: 2px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="puzzle-container" id="puzzleContainer"></div>
+    <script>
+        const puzzleContainer = document.getElementById('puzzleContainer');
+        const pieces = [];
+
+        // Create puzzle pieces
+        for (let i = 1; i <= 9; i++) {
+            const piece = document.createElement('div');
+            piece.className = 'puzzle-piece';
+            piece.textContent = i;
+            piece.addEventListener('click', () => { 
+                piece.style.backgroundColor = piece.style.backgroundColor === 'lightgreen' ? '#fff' : 'lightgreen';
+            });
+            pieces.push(piece);
+            puzzleContainer.appendChild(piece);
+        }
+    </script>
+</body>
+</html>
